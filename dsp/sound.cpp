@@ -1,0 +1,89 @@
+//This program uses the OSS library.
+//http://digitalsoundandmusic.com/2-3-12-modeling-sound-in-c-under-linux/
+#include <sys/ioctl.h> //for ioctl()
+#include <math.h> //sin(), floor(), and pow()
+#include <stdio.h> //perror
+#include <fcntl.h> //open, O_WRONLY
+#include <linux/soundcard.h> //SOUND_PCM*
+#include <iostream>
+#include <unistd.h>
+#include <fstream>
+using namespace std;
+
+#define TYPE char
+#define LENGTH 1 //number of seconds per frequency
+#define RATE 44100 //sampling rate
+#define SIZE sizeof(TYPE) //size of sample, in bytes
+#define CHANNELS 1 //number of audio channels
+#define PI 3.14159
+#define NUM_FREQS 3 //total number of frequencies
+#define BUFFSIZE (int) (NUM_FREQS*LENGTH*RATE*SIZE*CHANNELS) //bytes sent to audio device
+#define ARRAYSIZE (int) (NUM_FREQS*LENGTH*RATE*CHANNELS) //total number of samples
+#define SAMPLE_MAX (pow(2,SIZE*8 - 1) - 1) 
+
+void writeToSoundDevice(TYPE buf[], int deviceID) {
+	int status;
+	status = write(deviceID, buf, BUFFSIZE);
+	if (status != BUFFSIZE)
+		perror("Wrote wrong number of bytes\n");
+	status = ioctl(deviceID, SNDCTL_DSP_SYNC, 0);
+	if (status == -1)
+		perror("SNDCTL_DSP_SYNC failed\n");
+}
+
+int main() {
+	int deviceID, arg, status, f, t, a, i;
+	TYPE buf[ARRAYSIZE];
+	deviceID = open("/dev/dsp", O_WRONLY, 0);
+	if (deviceID < 0)
+		perror("Opening /dev/dsp failed\n");
+	// working
+	arg = SIZE * 8;
+	status = ioctl(deviceID, SNDCTL_DSP_SETFMT, &arg);
+	if (status == -1)
+		perror("Unable to set sample size\n");
+	arg = CHANNELS;
+	status = ioctl(deviceID, SNDCTL_DSP_CHANNELS, &arg);
+	if (status == -1)
+		perror("Unable to set number of channels\n");
+	arg = RATE;
+	status = ioctl(deviceID, SNDCTL_DSP_SPEED, &arg);
+	if (status == -1)
+		perror("Unable to set sampling rate\n");
+	a = SAMPLE_MAX;
+	for (i = 0; i < NUM_FREQS; ++i) {
+		switch (i) {
+			case 0:
+				f = 262;
+				break;
+			case 1:
+				f = 330;
+				break;
+			case 2:
+				f = 392;
+				break;
+		}
+		for (t = 0; t < ARRAYSIZE/NUM_FREQS; ++t) {
+			buf[t + ((ARRAYSIZE / NUM_FREQS) * i)] = floor(a * 20*sin(2*PI*f*t/RATE));
+		}
+	}
+
+	TYPE soundBuf[ARRAYSIZE/NUM_FREQS];
+//for (i = 0; i < NUM_FREQS; ++i) {
+//		switch (i)
+//
+//
+	std::ofstream outfile;
+	outfile.open("values.txt", std::ios_base::app);
+	
+	for (t = 0; t < ARRAYSIZE/NUM_FREQS; ++t) {
+		soundBuf[t] = floor(sin(880*PI*t));
+		//std::cout << (int)soundBuf[t] << std::endl;
+		outfile << (int)soundBuf[t] <<"\n";
+	}
+	writeToSoundDevice(soundBuf, deviceID);
+
+
+//	}
+}
+
