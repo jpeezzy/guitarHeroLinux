@@ -25,47 +25,36 @@ using namespace std;
 #define ARRAYSIZE (int) (NUM_FREQS*LENGTH*RATE*CHANNELS) //total number of samples
 #define SAMPLE_MAX (pow(2,SIZE*8 - 1) - 1) 
 std::mutex keyLock;
-void writeToSoundDevice(TYPE buf[], int deviceID, int status) {
-	//	status = write(deviceID, buf, BUFFSIZE);
-	//	if (status != BUFFSIZE)
-	//		perror("Wrote wrong number of bytes\n");
+static int status;
+static TYPE soundBuf[BUFFSIZE]; 
+
+void writeToSoundDevice(int deviceID) {
+
 	status = ioctl(deviceID, SNDCTL_DSP_SYNC, 0);
 	if (status == -1)
-		perror("SNDCTL_DSP_SYNC failed\n");
-}
-
-void initializeThread(int deviceID)
-{
-	TYPE soundBuf[BUFFSIZE];
-	std::ofstream outfile;
-	outfile.open("values.txt", std::ios_base::app);
-
-	for (int t = 0; t < BUFFSIZE; ++t) 
-	{
-		soundBuf[t] = 2*sin(880*PI*t/RATE);
-		//std::cout << (int)soundBuf[t] << std::endl;
-		outfile << sin(880*PI*t/RATE) <<"\n";
-	}
-
-	int status;
-	status = write(deviceID, soundBuf, BUFFSIZE);
-	printf("thread print line \n");
+		perror("SNDCTL_DSP_SYNC failed\n"); 
 	while(true)
 	{
-//		frequency = 440;
+		status = write(deviceID, soundBuf, BUFFSIZE);
+		if (status != BUFFSIZE)
+			perror("Wrote wrong number of bytes\n");
+	}
+} 
+void initializeThread(int deviceID)
+{
+	std::ofstream outfile;
+	outfile.open("values.txt", std::ios_base::app);
+	int status;
+	while(true)
+	{
+		int frequency = 440;
 		for (int t = 0; t < BUFFSIZE; ++t) 
 		{
 			//soundBuf[t] = 2*sin(frequency*2*PI*t/RATE);
 			soundBuf[t] = 2*sin(880*PI*t/RATE) +  2*sin(1100*PI*t/RATE) + 2*sin(1320*PI*t/RATE);;;
 			//std::cout << (int)soundBuf[t] << std::endl;
-			outfile << sin(880*PI*t/RATE) <<"\n";
+			//outfile << sin(880*PI*t/RATE) <<"\n";
 		}
-
-		int status;
-		status = write(deviceID, soundBuf, BUFFSIZE);
-		keyLock.lock();
-		writeToSoundDevice(soundBuf, deviceID, status);
-		keyLock.unlock();
 	}
 }
 
@@ -94,9 +83,9 @@ int main() {
 	if (status == -1)
 		perror("Unable to set sampling rate\n");
 	a = SAMPLE_MAX;
-	std::cout << "A is " << a << std::endl; 
+//	std::cout << "A is " << a << std::endl; 
 	std::thread t1 (initializeThread, deviceID);
-	std::thread t2(initializeThread, deviceID);
+	std::thread t2 (writeToSoundDevice, deviceID);
 	t1.join();
 	t2.join();
 	return 0;
